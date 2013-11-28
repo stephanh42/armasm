@@ -685,12 +685,20 @@ def _make_executable_array(opcodes):
     return result
 
 _type_flags = {
+    "b" : _ctypes.c_int8,
+    "B" : _ctypes.c_uint8,
+    "h" : _ctypes.c_int16,
+    "H" : _ctypes.c_uint16,
     "i" : _ctypes.c_int32,
     "I" : _ctypes.c_uint32,
-    "p" : _ctypes.c_void_p,
+    "l" : _ctypes.c_int64,
+    "L" : _ctypes.c_uint64,
+
     "str" : _ctypes.c_char_p,
     "ch" : _ctypes.c_char,
-    "?" : _ctypes.c_bool,
+    "bool" : _ctypes.c_bool,
+    "p" : _ctypes.c_void_p,
+    "" : None
 }
 
 def prototype(proto):
