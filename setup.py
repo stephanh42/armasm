@@ -8,7 +8,7 @@ setup(name='armasm',
       url='https://github.com/stephanh42/armasm',
       py_modules=['armasm'],
       license='MIT',
-      platform='Linux/ARM',
+      platforms=['Linux/ARM','Raspbian'],
       long_description="""
 ARM inline assembler for Python
 
