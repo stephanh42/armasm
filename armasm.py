@@ -45,6 +45,10 @@ class _InstructionFormat:
         "1" : 1,
         "A" : 1,
         "B" : 1,
+        "c" : 1,
+        "x" : 1,
+        "s" : 1,
+        "f" : 1,
         "CPNum" : 4,
         "CRd" : 4,
         "CRm" : 4,
@@ -160,6 +164,8 @@ class _OperandParser:
 
     special_chars = {"space" : ord(' '), "newline" : ord('\n'), "tab" : ord('\t')}
 
+    control_flags = frozenset("cxsf")
+
     def __init__(self, libraries):
         self.constant_pool = []
         self.constant_pool_dict = {}
@@ -262,6 +268,16 @@ class _OperandParser:
             self.error("Expected CPSR or SPSR, got: %s" % str)
         else:
             return reg
+
+    def parse_status_register_flags(self, str):
+        fields = str.split('_', 1)
+        if len(fields) == 2:
+            R = self.parse_status_register(fields[0])
+            flags = set(fields[1].lower())
+            if flags.issubset(self.control_flags):
+                flags = {f : 1 if f in flags else 0 for f in self.control_flags}
+                return (R, flags)
+        self.error("Expected CPSR_flags or SPSR_flags, got: %s % str")
 
 
     def parse_regset(self, str):
@@ -408,6 +424,8 @@ _mul_format = _InstructionFormat("Cond 0 0 0 0 0 0 0 S Rd 0 0 0 0 Rs 1 0 0 1 Rm"
 _mla_format = _InstructionFormat("Cond 0 0 0 0 0 0 1 S Rd Rn Rs 1 0 0 1 Rm")
 _clz_format = _InstructionFormat("Cond 0 0 0 1 0 1 1 0 1 1 1 1 Rd 1 1 1 1 0 0 0 1 Rm")
 _mrs_format = _InstructionFormat("Cond 0 0 0 1 0 R 0 0 1 1 1 1 Rd 0 0 0 0 0 0 0 0 0 0 0 0")
+_msr_format_reg = _InstructionFormat("Cond 0 0 0 1 0 R 1 0 f s x c 1 1 1 1 0 0 0 0 0 0 0 0 Rm")
+_msr_format_imm = _InstructionFormat("Cond 0 0 1 1 0 R 1 0 f s x c 1 1 1 1 Operand2")
 _swi_format = _InstructionFormat("Cond 1 1 1 1 Imm24")
 
 def _parse_dpi(opcode, condition, s, parser, operands):
@@ -538,6 +556,21 @@ def _parse_mrs(condition, parser, operands):
     R = parser.parse_status_register(operands[1])
     return _mrs_format.encode({"Rd" : Rd, "R" : R, "Cond" : condition})
 
+def _parse_msr(condition, parser, operands):
+    if len(operands) != 2:
+        parser.error("Expected 2 arguments, got %d" % len(operands))
+    R, fields = parser.parse_status_register_flags(operands[0])
+    fields["R"] = R
+    fields["Cond"] = condition
+    imm = parser.parse_immediate(operands[1])
+    if imm is not None:
+        fields["Operand2"] = parser.encode_immediate(imm)
+        return _msr_format_imm.encode(fields)
+    else:
+        Rm = parser.parse_register(operands[1], checked=True)
+        fields["Rm"] = Rm
+        return _msr_format_reg.encode(fields)
+
 def _parse_swi(condition, parser, operands):
     if len(operands) != 1:
         parser.error("Expected 1 argument, got %d" % len(operands))
@@ -639,10 +672,13 @@ for _i in range(len(_conditions)):
     _fullname = "clz" + _conditions[_i]
     _instructions[_fullname] = _partial(_parse_clz, _i)
 
-# Install Move Register from Status instructions
+# Install Move Register from/to Status instructions
 for _i in range(len(_conditions)):
     _fullname = "mrs" + _conditions[_i]
     _instructions[_fullname] = _partial(_parse_mrs, _i)
+    _fullname = "msr" + _conditions[_i]
+    _instructions[_fullname] = _partial(_parse_msr, _i)
+
 
 # Install SoftWare Interrupt instructions
 for _i in range(len(_conditions)):
